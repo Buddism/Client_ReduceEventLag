@@ -1,638 +1,392 @@
-// function wrenchEventsDlg::CreateColorMenu (%this, %gui)
-// {
-// 	%rowLimit = -1;
-// 	for(%i = 0; %i < $Paint_NumPaintRows; %i++)
-// 		%rowLimit = getMax(%rowLimit, $Paint_Row[%i].numSwatches);
-
-// 	%xPos = getWord (%gui.getPosition(), 0) + getWord (%gui.getExtent(), 0);
-// 	%yPos = getWord (%gui.getPosition(), 1);
-// 	%parent = %gui;
-
-// 	for (%i = 0; %i < 3; %i++)
-// 	{
-// 		%parent = %parent.getGroup ();
-// 		%xPos += getWord (%parent.getPosition (), 0);
-// 		%yPos += getWord (%parent.getPosition (), 1);
-// 	}
-
-// 	if (isObject (%this.colorMenu))
-// 	{
-// 		%oldx = getWord (%this.colorMenu.getPosition (), 0);
-// 		%oldy = getWord (%this.colorMenu.getPosition (), 1);
-// 		%this.colorMenu.delete ();
-// 		if (%oldx == %xPos && %oldy == %yPos)
-// 			return;
-// 	}
-// 	%newScroll = new GuiScrollCtrl("Avatar_ColorMenu")
-// 	{
-// 		Profile = ColorScrollProfile;
-// 		vScrollBar = "alwaysOn";
-// 		hScrollBar = "alwaysOff";
-
-// 		position = %xPos SPC %yPos;
-// 		extent = 18+12 SPC 18;
-// 	};
-// 	WrenchEvents_Window.add (%newScroll);
-
-// 	%newBox = new GuiSwatchCtrl()
-// 	{
-// 		color = "0 0 0 1";
-// 		position = "0 0";
-// 		extent = "18 18";
-// 	};
-// 	%newScroll.add(%newBox);
-
-// 	%itemCount = 0;
-// 	%numPaintRows = 0;
-// 	%lastPaintRowMax = $Paint_Row[%numPaintRows].numSwatches;
-// 	for(%color = getColorIDTable(%i = 0); getWord(%color, 3) > 0 && %i < 64; %color = getColorIDTable(%i++))
-// 	{
-// 		if(%i >= %lastPaintRowMax)
-// 		{
-// 			echo("new row: " @ %i);
-// 			%numPaintRows++;
-// 			%lastPaintRowMax = %i + $Paint_Row[%numPaintRows].numSwatches;
-// 		}
-// 		if (%color $= "")
-// 			%color = "1 1 1 1";
-
-// 		//%rowLimit = $Paint_Row[%numPaintRows].numSwatches;
-
-// 		%x = (%itemCount % %rowLimit) * 18;
-// 		%y = mFloor (%itemCount / %rowLimit) * 18;
-
-// 		%newSwatch = new GuiSwatchCtrl()
-// 		{
-// 			position = %x SPC %y;
-// 			extent = "18 18";
-// 		};
-// 		%newSwatch.setColor(%color);
-
-// 		%newButton = new GuiBitmapButtonCtrl()
-// 		{
-// 			bitmap = "base/client/ui/btnColor";
-// 			position = %x SPC %y;
-// 			extent = "18 18";
-// 			command = "wrenchEventsDlg.pickColor(" @ %gui @ "," @ %i @ ");";
-// 			text = " ";
-// 		};
-		
-// 		%newBox.add (%newSwatch);
-// 		%newBox.add (%newButton);
-
-// 		%itemCount++;
-// 	}
-// 	if (%itemCount >= %rowLimit)
-// 		%w = %rowLimit * 18;
-// 	else
-// 		%w = %itemCount * 18;
-
-// 	%h = (mFloor (%itemCount / %rowLimit) + 0) * 18;
-// 	%newBox.resize (0, 0, %w, %h);
-// 	if (%yPos + %h > 480)
-// 		%h = mFloor ((480 - %yPos) / 18) * 18;
-
-// 	%newScroll.resize (%xPos, %yPos, %w + 12, %h);
-// 	%this.colorMenu = %newScroll;
-// }
-
-package doot
+function REL_createEventTable()
 {
-	function ClientCmdRegisterEventsDone()
+	newChatHud_AddLine("\c6Generated Event Datablock Tables");
+
+	$REL_RegenerateTable = false;
+	deleteVariables("$EventDBTable*");
+
+	%dbCount = getDatablockGroupSize();
+	for(%i = 0; %i < %dbCount; %i ++)
 	{
-		$generatedSoundList = 0;
-		$generatedMusicList = 0;
-		$generatedVehicleList = 0;
-		deleteVariables("$Gen::ML*");
-		deleteVariables("$Gen::SL*");
-		deleteVariables("$Gen::VL*");
-		deleteVariables("$generatedCustom*");
-		deleteVariables("$Gen::Custom*");
-		newChatHud_AddLine(request);
-		parent::ClientCmdRegisterEventsDone();
+		%db = getDatablock(%i);
+
+		%class = %db.getClassName();
+		//%tableClass (type of class music/sound/vehicle/ projectiledata)
+		//%tableName (display name)
+
+		%hasGenericType = false;
+
+		//check the if the current DB matches a generic event type
+		if (%dbClass $= "AudioProfile")
+		{
+			if (%db.uiName !$= "")
+			{
+				//MUSIC TYPE
+				%tableName = %db.uiName;
+				%tableClass = "Music";
+				%hasGenericType = true;
+			} else if (%db.getDescription().isLooping != 1 && %db.getDescription().is3D)
+			{
+				//SOUND TYPE
+				%tableName = fileName(%db.fileName);
+				%tableClass = "Sound";
+				%hasGenericType = true;
+			}
+		} else if(%db.uiName !$= "")
+		{
+			if (%dbClass $= "WheeledVehicleData" || %dbClass $= "HoverVehicleData" || %dbClass $= "FlyingVehicleData" || (%dbClass $= "PlayerData" && %db.rideAble))
+			{
+				//VEHICLE TYPE
+				%tableClass = "Vehicle";
+				%tableName = %db.uiName;
+				%hasGenericType = true;
+			}
+		}
+
+		//register a specific table type
+		if(%hasGenericType)
+		{
+			%classIndex = $EventDBTableClassCount + 0; //make sure this is a number\
+			//this is the name to id hash table
+			$EventDBTableClassIndex[%tableClass] = %classIndex;
+
+			%currentIndex = $EventDBTableCount[%classIndex] + 0; //make sure this is a number
+
+			$EventDBTableName[%classIndex, %currentIndex] = %tableName;
+			$EventDBTableID[%classIndex, %currentIndex] = %db;
+
+			$EventDBTableCount[%classIndex]++;
+			$EventDBTableClassCount++;
+		}
+
+		if(%db.uiName $= "")
+			continue;
+
+		//register a classname DB type
+		%classIndex = $EventDBTableClassCount + 0; //make sure this is a number\
+		//this is the name to id hash table
+		$EventDBTableClassIndex[%class] = %classIndex;
+		
+		%currentIndex = $EventDBTableCount[%classIndex] + 0; //make sure this is a number
+
+		$EventDBTableName[%classIndex, %currentIndex] = %db.uiName;
+		$EventDBTableID[%classIndex, %currentIndex] = %db;
+
+		$EventDBTableCount[%classIndex]++;
+		$EventDBTableClassCount++;
 	}
+}
+
+function REL_populateType(%gui, %classType)
+{
+	if(!isObject(%gui))
+		continue;
+
+	%index = $EventDBTableClassIndex[%classType];
+
+	%count = $EventDBTableCount[%index];
+	for(%i = 0; %i < %count; %i++)
+		%gui.add($EventDBTableName[%index, %i], $EventDBTableID[%index, %i]);
+}
+
+
+package Client_ReduceEventLag
+{
+	//this is called when a datablock is updated ex: transmitdatablocks
+	function onDataBlockObjectReceived(%index, %total)
+	{
+		$REL_RegenerateTable = true;
+		return parent::onDataBlockObjectReceived(%index, %total);
+	}
+
+	//Generate the datablock list before we start downloading scopealways objects
+	function clientCmdMissionStartPhase2(%seq)
+	{
+		REL_createEventTable();
+		return parent::clientCmdMissionStartPhase2(%seq);
+	}
+	
+	function disconnectedCleanup(%doReconnect)
+	{
+		%parent = parent::disconnectedCleanup(%doReconnect);
+		deleteVariables("$EventDBTable*");
+		return %parent;
+	}
+
+	//we need to override this function entirely
 	function wrenchEventsDlg::createOutputParameters(%this, %box, %outputMenu, %outputClass)
 	{
-		//newChatHud_AddLine(hi);
+		//make sure the table is always updated
+		if($REL_RegenerateTable)
+			REL_createEventTable();
+
 		%this.closeColorMenu();
-		%lastObject = %box.getObject(%box.getCount() - 1.0);
+
+		//delete the old output parameters
+		%lastObject = %box.getObject(%box.getCount() - 1);
 		while(%lastObject != %outputMenu)
 		{
 			%lastObject.delete();
-			%lastObject = %box.getObject(%box.getCount() - 1.0);
+			%lastObject = %box.getObject(%box.getCount() - 1);
 		}
+
 		if(%outputMenu.getText() $= "")
 			return;
 
 		%selected = %outputMenu.getSelected();
-		%parList = $OutputEvent_parameterList[%outputClass,%selected];
+		%parList = $OutputEvent_parameterList[%outputClass, %selected];
 		%focusControl = 0;
 		%parCount = getFieldCount(%parList);
 
 		for(%i = 0; %i < %parCount; %i++)
 		{
 			%field = getField(%parList, %i);
-			%lastObject = %box.getObject(%box.getCount() - 1.0);
-			%x = 2.0 + getWord(%lastObject.getPosition(), 0) + getWord(%lastObject.getExtent(), 0);
+			%lastObject = %box.getObject(%box.getCount() - 1);
+
+			%x = 2 + getWord(%lastObject.getPosition(), 0) + getWord(%lastObject.getExtent(), 0);
 			%y = 0;
 			%h = 18;
+
 			%type = getWord(%field, 0);
 			switch$(%type)
 			{
 				case "int":
-					%min = mFloor(getWord(%field, 1));
-					%max = mFloor(getWord(%field, 2));
-					%default = mFloor(getWord(%field, 3));
+					%min = mFloor (getWord (%field, 1));
+					%max = mFloor (getWord (%field, 2));
+					%default = mFloor (getWord (%field, 3));
 					%maxChars = 1;
-					if(%min < 0.0)
-						%testVal = getMax(mAbs(%min) * 10.0, %max);
-					else %testVal = getMax(mAbs(%min), %max);
-					while(%testVal >= 10.0)
+
+					if ( %min < 0 )
 					{
-						%maxChars = %maxChars + 1.0;
-						%testVal = %testVal / 10.0;
+						%testVal = getMax (mAbs (%min) * 10, %max);
 					}
-					%gui = new GuiTextEditCtrl();
-					%box.add(%gui);
-					%w = %maxChars * 6.0 + 6.0;
-					%gui.resize(%x, %y, %w, %h);
+					else
+					{
+						%testVal = getMax (mAbs (%min), %max);
+					}
+
+					while ( %testVal >= 10 )
+					{
+						%maxChars++;
+						%testVal /= 10;
+					}
+
+					%gui = new GuiTextEditCtrl ();
+					%box.add (%gui);
+
+					%w = (%maxChars * 6) + 6;
+
+					%gui.resize (%x, %y, %w, %h);
 					%gui.command = "wrenchEventsDlg.VerifyInt(" @ %gui @ "," @ %min @ "," @ %max @ ");";
-					%gui.setText(%default);
+					%gui.setText (%default);
+
 				case "intList":
 					%maxLength = 200;
-					%width = mFloor(getWord(%field, 1));
-					%gui = new GuiTextEditCtrl();
-					%box.add(%gui);
+
+					%width = mFloor (getWord (%field, 1));
+
+					%gui = new GuiTextEditCtrl ();
+					%box.add (%gui);
+
 					%w = %width;
-					%gui.resize(%x, %y, %w, %h);
+
+					%gui.resize (%x, %y, %w, %h);
 					%gui.maxLength = %maxLength;
+
 				case "float":
-						%min = atof(getWord(%field, 1));
-						%max = atof(getWord(%field, 2));
-						%step = mAbs(getWord(%field, 3));
-						%default = atof(getWord(%field, 4));
-						if (%step >= %max - %min)
-							%step = (%max - %min) / 10.0;
-						if (%step <= 0.0)
-							%step = 0.1;
-						%gui = new GuiSliderCtrl();
-						%box.add(%gui);
-						%w = 100;
-						%h = 36;
-						%gui.resize(%x, %y, %w, %h);
-						%gui.range = %min SPC %max;
-						%gui.setValue(%default);
-						%gui.command = " $thisControl.setValue(       mFloor( $thisControl.getValue() * (1 / " @ %step @ ") )   * " @ %step @ "   ) ;";
+					%min = atof (getWord (%field, 1));
+					%max = atof (getWord (%field, 2));
+					%step = mAbs (getWord (%field, 3));
+					%default = atof (getWord (%field, 4));
+
+					if ( %step >= %max - %min )
+					{
+						%step = (%max - %min) / 10;
+					}
+
+					if ( %step <= 0 )
+					{
+						%step = 0.1;
+					}
+
+					%gui = new GuiSliderCtrl ();
+					%box.add (%gui);
+
+					%w = 100;
+					%h = 36;
+
+					%gui.resize (%x, %y, %w, %h);
+					%gui.range = %min SPC %max;
+					%gui.setValue (%default);
+
+					%gui.command = " $thisControl.setValue(       mFloor( $thisControl.getValue() * (1 / "
+						@ %step @ ") )   * " @ %step @ "   ) ;";
+
 				case "bool":
-						%gui = new GuiCheckBoxCtrl();
-						%box.add(%gui);
-						%w = %h;
-						%gui.resize(%x, %y, %w, %h);
-						%gui.setText("");
+					%gui = new GuiCheckBoxCtrl ();
+					%box.add (%gui);
+
+					%w = %h;
+
+					%gui.resize (%x, %y, %w, %h);
+					%gui.setText ("");
+
 				case "string":
-						%maxLength = mFloor(getWord(%field, 1));
-						%width = mFloor(getWord(%field, 2));
-						%gui = new GuiTextEditCtrl();
-						%box.add(%gui);
-						%w = %width;
-						
-						%gui.resize(%x, %y, %w, %h);
-						%gui.maxLength = %maxLength;
-				case "datablock":
+					%maxLength = mFloor (getWord (%field, 1));
+					%width = mFloor (getWord (%field, 2));
+
+					%gui = new GuiTextEditCtrl ();
+					%box.add (%gui);
+
+					%w = %width;
+
+					%gui.resize (%x, %y, %w, %h);
+					%gui.maxLength = %maxLength;
+
+				case "datablock": //THIS IS THE ADDON CUSTOM BEHAVIOUR
 						%dbClassName = getWord(%field, 1);
 						%gui = new GuiPopUpMenuCtrl();
 						%box.add(%gui);
 						%w = 100;
 						%gui.resize(%x, %y, %w, %h);
-						%dbCount = mClamp(getDataBlockGroupSize(), 0, 100000);
 						switch$(%dbClassName)
 						{
 							case "Music":
-								if(!$generatedMusicList)
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if (%dbClass $= "AudioProfile")
-											if (%db.uiName !$= "")
-											{
-												%gui.add(%db.uiName, %db);
-												$Gen::MLN[-1+$Gen::MLNC++] = %db.uiName;
-												$Gen::MLD[-1+$Gen::MLDC++] = %db;
-											}
-									}
-									$generatedMusicList = 1;
-								} else {
-									%gcount = getMax($Gen::MLNC, $Gen::MLDC);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::MLN[%sI], $gen::MLD[%sI]);
-								}
+								REL_populateType(%gui, "Music");
+
 							case "Sound":
-								if(!$generatedSoundList)
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if (%dbClass $= "AudioProfile")
-										{
-											if (%db.uiName $= "" && %db.getDescription().isLooping != 1 && %db.getDescription().is3D)
-											{
-												%name = fileName(%db.fileName);
-												%gui.add(%name, %db);
-												$Gen::SLN[-1+$Gen::SLNC++] = %name;
-												$Gen::SLD[-1+$Gen::SLDC++] = %db;
-											}
-										}
-									}
-									$generatedSoundList = 1;
-								} else {
-									%gcount = getMax($Gen::SLNC, $Gen::SLDC);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::SLN[%sI], $gen::SLD[%sI]);
-								}
+								REL_populateType(%gui, "Sound");
+
 							case "Vehicle":
-								if(!$generatedVehicleList)
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if (%db.uiName !$= "")
-											if (%dbClass $= "WheeledVehicleData" || %dbClass $= "HoverVehicleData" || %dbClass $= "FlyingVehicleData" || (%dbClass $= "PlayerData" && %db.rideAble))
-											{
-												%gui.add(%db.uiName, %db);
-												$Gen::VLN[-1+$Gen::VLNC++] = %db.uiName;
-												$Gen::VLD[-1+$Gen::VLDC++] = %db;
-											}
-									}
-									$generatedVehicleList = 1;
-								} else {
-									%gcount = getMax($Gen::VLNC, $Gen::VLDC);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::VLN[%sI], $gen::VLD[%sI]);
-								}
+								REL_populateType(%gui, "Vehicle");
+									
 							default:
-								if(!$generatedCustom[%dbClassName])
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if (%db.uiName !$= "" && %dbClass $= %dbClassName)
-										{
-											%gui.add(%db.uiName, %db);
-											$Gen::CustomN[%dbClassName, -1 + $Gen::CustomCN[%dbClassName]++] = %db.uiName;
-											$Gen::CustomD[%dbClassName, -1 + $Gen::CustomCD[%dbClassName]++] = %db;
-										}
-									}
-									$generatedCustom[%dbClassName] = 1;
-								} else {
-									%gcount = getMax($Gen::CustomCN[%dbClassName], $Gen::CustomCD[%dbClassName]);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::CustomN[%dbClassName, %sI], $Gen::CustomD[%dbClassName, %sI]);
-								}
+								REL_populateType(%gui, %dbClassName);
 						}
+
 						%gui.sort();
 						%gui.addFront("NONE", -1);
+
 						if (!$WrenchEventLoading)
 							%gui.forceOnAction();
-				case "Vector":
+
+				case "vector":
 					%tw = 31;
-					%gui = new GuiSwatchCtrl();
-					%box.add(%gui);
-					%w = (%tw + 2.0) * 3.0 + 2.0;
-					%gui.resize(%x, %y, %w, %h);
-					%gui.setColor("0 0 0 0.75");
-					%xTextBox = new GuiTextEditCtrl();
-					%gui.add(%xTextBox);
-					%tx = 0.0 + 2.0;
+
+					%gui = new GuiSwatchCtrl ();
+					%box.add (%gui);
+
+					%w = ((%tw + 2) * 3) + 2;
+
+					%gui.resize (%x, %y, %w, %h);
+					%gui.setColor ("0 0 0 0.75");
+
+					%xTextBox = new GuiTextEditCtrl ();
+					%gui.add (%xTextBox);
+
+					%tx = 0 + 2;
 					%ty = 0;
 					%th = %h;
-					%xTextBox.resize(%tx, %ty, %tw, %th);
-					%yTextBox = new GuiTextEditCtrl();
-					%gui.add(%yTextBox);
-					%tx = (%tw + 2.0) * 1.0 + 2.0;
-					%yTextBox.resize(%tx, %ty, %tw, %th);
-					%zTextBox = new GuiTextEditCtrl();
-					%gui.add(%zTextBox);
-					%tx = (%tw + 2.0) * 2.0 + 2.0;
-					%zTextBox.resize(%tx, %ty, %tw, %th);
+
+					%xTextBox.resize (%tx, %ty, %tw, %th);
+
+					%yTextBox = new GuiTextEditCtrl ();
+					%gui.add (%yTextBox);
+
+					%tx = ((%tw + 2) * 1) + 2;
+					%yTextBox.resize (%tx, %ty, %tw, %th);
+
+					%zTextBox = new GuiTextEditCtrl ();
+					%gui.add (%zTextBox);
+
+					%tx = ((%tw + 2) * 2) + 2;
+					%zTextBox.resize (%tx, %ty, %tw, %th);
+
 					%gui = %xTextBox;
+
 				case "list":
-					%gui = new GuiPopUpMenuCtrl();
-					%box.add(%gui);
+					%gui = new GuiPopUpMenuCtrl ();
+					%box.add (%gui);
+
 					%w = 100;
 					%h = 18;
-					%gui.resize(%x, %y, %w, %h);
-					%itemCount = (getWordCount(%field) - 1.0) / 2.0;
-					%itr = 0;
-					while(%itr < %itemCount)
+
+					%gui.resize (%x, %y, %w, %h);
+					%itemCount = (getWordCount (%field) - 1) / 2;
+
+					for ( %itr = 0; %itr < %itemCount; %itr++ )
 					{
-						%idx = %itr * 2.0 + 1.0;
-						%name = getWord(%field, %idx);
-						%id = getWord(%field, %idx + 1.0);
-						%gui.add(%name, %id);
-						%itr = %itr + 1.0;
+						%idx = (%itr * 2) + 1;
+						%name = getWord (%field, %idx);
+						%id = getWord (%field, %idx + 1);
+
+						%gui.add (%name, %id);
 					}
-					%gui.setSelected(0);
-					if (!$WrenchEventLoading)
-						%gui.forceOnAction();
+
+					%gui.setSelected (false);
+
+					if ( !$WrenchEventLoading )
+					{
+						%gui.forceOnAction ();
+					}
+
 				case "paintColor":
-					%gui = new GuiSwatchCtrl();
-					%box.add(%gui);
+					%gui = new GuiSwatchCtrl ();
+					%box.add (%gui);
+
 					%w = 18;
 					%h = 18;
-					%gui.resize(%x, %y, %w, %h);
-					%button = new GuiBitmapButtonCtrl();
-					%gui.add(%button);
-					%button.resize(0, 0, %w, %h);
-					%button.setBitmap("base/client/ui/btnColor");
-					%button.setText("");
+
+					%gui.resize (%x, %y, %w, %h);
+
+					%button = new GuiBitmapButtonCtrl ();
+					%gui.add (%button);
+
+					%button.resize (0, 0, %w, %h);
+					%button.setBitmap ("base/client/ui/btnColor");
+					%button.setText ("");
+
 					%button.command = "WrenchEventsDlg.CreateColorMenu(" @ %gui @ ");";
-					wrenchEventsDlg.pickColor(%gui, 0);
+
+					wrenchEventsDlg.pickColor (%gui, 0);
+
 				default:
-					error("ERROR: wrenchEventsDlg::createOutputParameters() - unknown type " @ %type @ "");
+					error ("ERROR: wrenchEventsDlg::createOutputParameters() - unknown type \"" @ %type @ "\"");
 			}
+
 			if (!%focusControl)
 				%focusControl = %gui;
 		}
-		if(isObject(%focusControl))
-		{
-			%focusControl.makeFirstResponder(1);
-		}
-	}
-};
-activatePackage(doot);
 
-
-
-
-//MEGA support
-function populateButton(%button, %datablock)
-{
-	//if($EventSystem::Version != 2)
-		//return parent::populateButton(%button,%dataBlock);
-	%button.dataType = %datablock;
-	%button.clear();
-	if(%datablock $= "Music")
-	{
-		%datablock = "AudioProfile";
-		for(%a = 0; %a < $ExtUINameTableCount[%datablock]; %a++)
-			if($ExtUINameTableID[%datablock, %a] !$= "")
-				%button.add($ExtUINameTableID[%datablock, %a].uiName, $ExtUINameTableID[%datablock, %a]);
-	}
-	else if(%datablock $= "Sound")
-	{
-		if(!$generatedSoundList)
-		{
-			%dbCount = getDataBlockGroupSize();
-			for(%itr = 0; %itr < %dbCount; %itr++)
-			{
-				%db = getDataBlock(%itr);
-				%dbClass = %db.getClassName();
-				if (%dbClass $= "AudioProfile")
-				{
-					if (%db.uiName $= "" && %db.getDescription().isLooping != 1 && %db.getDescription().is3D)
-					{
-						%name = fileName(%db.fileName);
-						%button.add(%name, %db);
-						$EC::SLN[-1+$EC::SNC++] = %name;
-						$EC::SLD[-1+$EC::SDC++] = %db;
-					}
-				}
-			}
-			$generatedSoundList = 1;
-		} else {
-			%gcount = getMax($EC::SNC, $EC::SDC);
-			for(%sI = 0; %sI < %gcount; %sI++)
-				%button.add($EC::SLN[%sI], $EC::SLD[%sI]);
-		}
-	}
-	else if(%datablock $= "Vehicle")
-	{
-		if(!$generatedVehicleList)
-		{
-			%dbCount = getDataBlockGroupSize();
-			for(%itr = 0; %itr < %dbCount; %itr++)
-			{
-				%db = getDataBlock(%itr);
-				%dbClass = %db.getClassName();
-				if (%db.uiName !$= "")
-					if (%dbClass $= "WheeledVehicleData" || %dbClass $= "HoverVehicleData" || %dbClass $= "FlyingVehicleData" || (%dbClass $= "PlayerData" && %db.rideAble))
-					{
-						%button.add(%db.uiName, %db);
-						$EC::VLN[-1+$EC::VLNC++] = %db.uiName;
-						$EC::VLD[-1+$EC::VLDC++] = %db;
-					}
-			}
-			$generatedVehicleList = 1;
-		} else {
-			%gcount = getMax($EC::VLNC, $EC::VLDC);
-			for(%sI = 0; %sI < %gcount; %sI++)
-				%button.add($EC::VLN[%sI], $EC::VLD[%sI]);
-		}
-	}
-	else
-	{
-		for(%a = 0; %a < $ExtUINameTableCount[%datablock]; %a++)
-		{
-			if($ExtUINameTableID[%datablock, %a].uiName !$= "")
-			{
-				%button.add($ExtUINameTableID[%datablock, %a].uiName,$ExtUINameTableID[%datablock, %a]);
-				%button.entryID[$ExtUINameTableID[%datablock, %a].uiName] = $ExtUINameTableID[%datablock, %a];
-			}
-		}
-	}
-	%button.sort();
-	%button.addFront("None",-1);
-	%button.entryID["None"] = -1;
-}
-
-
-
-//broken
-return;
-package doot
-{
-	function ClientCmdRegisterEventsDone()
-	{
-		$generatedSoundList = 0;
-		$generatedMusicList = 0;
-		$generatedVehicleList = 0;
-		deleteVariables("$Gen::ML*");
-		deleteVariables("$Gen::SL*");
-		deleteVariables("$Gen::VL*");
-		deleteVariables("$generatedCustom*");
-		deleteVariables("$Gen::Custom*");
-		newChatHud_AddLine(request);
-		parent::ClientCmdRegisterEventsDone();
-	}
-	function wrenchEventsDlg::createOutputParameters(%this, %box, %outputMenu, %outputClass)
-	{
-		if($EventSystem::Version > 0)
-			return parent::createOutputParameters(%this, %box, %outputMenu, %outputClass);
-
-		%this.closeColorMenu();
-		%lastObject = %box.getObject(%box.getCount() - 1.0);
-		while(%lastObject != %outputMenu)
-		{
-			%lastObject.delete();
-			%lastObject = %box.getObject(%box.getCount() - 1.0);
-		}
-		if(%outputMenu.getText() $= "")
-			return;
-
-		%selected = %outputMenu.getSelected();
-		%parList = $OutputEvent_parameterList[%outputClass,%selected];
-		%focusControl = 0;
-		%parCount = getFieldCount(%parList);
-
-		for(%i = 0; %i < %parCount; %i++)
-		{
-			%field = getField(%parList, %i);
-			%lastObject = %box.getObject(%box.getCount() - 1.0);
-			%x = 2.0 + getWord(%lastObject.getPosition(), 0) + getWord(%lastObject.getExtent(), 0);
-			%y = 0;
-			%h = 18;
-			%type = getWord(%field, 0);
-			switch$(%type)
-			{
-				case "datablock":
-						%dbClassName = getWord(%field, 1);
-						%gui = new GuiPopUpMenuCtrl();
-						%box.add(%gui);
-						%w = 100;
-						%gui.resize(%x, %y, %w, %h);
-						%dbCount = getDataBlockGroupSize();
-
-						switch$(%dbClassName)
-						{
-							case "Music":
-								if(!$generatedMusicList)
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if(%dbClass $= "fxDTSBrick")
-											break; //no longer datablocks
-
-										if (%dbClass $= "AudioProfile")
-											if (%db.uiName !$= "")
-											{
-												%gui.add(%db.uiName, %db);
-												$Gen::MLN[-1+$Gen::MLNC++] = %db.uiName;
-												$Gen::MLD[-1+$Gen::MLDC++] = %db;
-											}
-									}
-									$generatedMusicList = 1;
-								} else {
-									%gcount = getMax($Gen::MLNC, $Gen::MLDC);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::MLN[%sI], $gen::MLD[%sI]);
-								}
-							case "Sound":
-								if(!$generatedSoundList)
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if(%dbClass $= "fxDTSBrick")
-										{
-											break; //no longer datablocks
-										}
-										if (%dbClass $= "AudioProfile")
-										{
-											if (%db.uiName $= "" && %db.getDescription().isLooping != 1 && %db.getDescription().is3D)
-											{
-												%name = fileName(%db.fileName);
-												%gui.add(%name, %db);
-												$Gen::SLN[-1+$Gen::SLNC++] = %name;
-												$Gen::SLD[-1+$Gen::SLDC++] = %db;
-											}
-										}
-									}
-									$generatedSoundList = 1;
-								} else {
-									%t = getRealTime();
-
-									%gcount = getMax($Gen::SLNC, $Gen::SLDC);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::SLN[%sI], $gen::SLD[%sI]);
-
-									echo(getRealTime() - %t);
-								}
-							case "Vehicle":
-								if(!$generatedVehicleList)
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if(%dbClass $= "fxDTSBrick")
-											break; //no longer datablocks
-
-										if (%db.uiName !$= "")
-											if (%dbClass $= "WheeledVehicleData" || %dbClass $= "HoverVehicleData" || %dbClass $= "FlyingVehicleData" || (%dbClass $= "PlayerData" && %db.rideAble))
-											{
-												%gui.add(%db.uiName, %db);
-												$Gen::VLN[-1+$Gen::VLNC++] = %db.uiName;
-												$Gen::VLD[-1+$Gen::VLDC++] = %db;
-											}
-									}
-									$generatedVehicleList = 1;
-								} else {
-									%gcount = getMax($Gen::VLNC, $Gen::VLDC);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::VLN[%sI], $gen::VLD[%sI]);
-								}
-							default:
-								if(!$generatedCustom[%dbClassName])
-								{
-									for(%itr = 0; %itr < %dbCount; %itr++)
-									{
-										%db = getDataBlock(%itr);
-										%dbClass = %db.getClassName();
-										if(%dbClass $= "fxDTSBrick")
-											break; //no longer datablocks
-
-										if (%db.uiName !$= "" && %dbClass $= %dbClassName)
-										{
-											%gui.add(%db.uiName, %db);
-											$Gen::CustomN[%dbClassName, -1 + $Gen::CustomCN[%dbClassName]++] = %db.uiName;
-											$Gen::CustomD[%dbClassName, -1 + $Gen::CustomCD[%dbClassName]++] = %db;
-										}
-									}
-									$generatedCustom[%dbClassName] = 1;
-								} else {
-									%gcount = getMax($Gen::CustomCN[%dbClassName], $Gen::CustomCD[%dbClassName]);
-									for(%sI = 0; %sI < %gcount; %sI++)
-										%gui.add($Gen::CustomN[%dbClassName, %sI], $Gen::CustomD[%dbClassName, %sI]);
-								}
-						}
-						%t = getRealTime();
-
-						%gui.sort();
-						%gui.addFront("NONE", -1);
-						if (!$WrenchEventLoading)
-							%gui.forceOnAction();
-
-						echo(getRealTime() - %t);
-
-				default:
-					//error("ERROR: wrenchEventsDlg::createOutputParameters() - unknown type " @ %type @ "");
-
-					//		TODO: FIX ERRORS
-					return parent::createOutputParameters(%this, %box, %outputMenu, %outputClass);
-			}
-			if (!%focusControl)
-				%focusControl = %gui;
-		}
 		if(isObject(%focusControl))
 			%focusControl.makeFirstResponder(1);
 	}
+
+	//MEGA support (not tested)
+	function populateButton(%button, %datablock)
+	{
+		//if($EventSystem::Version != 2)
+			//return parent::populateButton(%button,%dataBlock);
+		%button.dataType = %datablock;
+		%button.clear();
+		switch$(%datablock)
+		{
+			case "Music":
+				REL_populateType(%button, "Music");
+
+			case "Sound":
+				REL_populateType(%button, "Sound");
+
+			case "Vehicle":
+				REL_populateType(%button, "Vehicle");
+					
+			default:
+				REL_populateType(%button, %dbClassName);
+		}
+
+		%button.sort();
+		%button.addFront("None",-1);
+		%button.entryID["None"] = -1;
+	}
 };
-activatePackage(doot);
+activatePackage(Client_ReduceEventLag);
