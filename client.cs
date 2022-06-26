@@ -6,11 +6,11 @@ function REL_createEventTable()
 	deleteVariables("$EventDBTable*");
 
 	%dbCount = getDatablockGroupSize();
-	for(%i = 0; %i < %dbCount; %i ++)
+	for(%i = 0; %i < %dbCount; %i++)
 	{
 		%db = getDatablock(%i);
 
-		%class = %db.getClassName();
+		%dbClass = %db.getClassName();
 		//%tableClass (type of class music/sound/vehicle/ projectiledata)
 		//%tableName (display name)
 
@@ -46,9 +46,13 @@ function REL_createEventTable()
 		//register a specific table type
 		if(%hasGenericType)
 		{
-			%classIndex = $EventDBTableClassCount + 0; //make sure this is a number\
 			//this is the name to id hash table
-			$EventDBTableClassIndex[%tableClass] = %classIndex;
+			if($EventDBTableClassIndex[%tableClass] $= "")
+			{
+				$EventDBTableClassIndex[%tableClass] = $EventDBTableClassCount + 0;
+				$EventDBTableClassCount++;
+			}
+			%classIndex = $EventDBTableClassIndex[%tableClass];
 
 			%currentIndex = $EventDBTableCount[%classIndex] + 0; //make sure this is a number
 
@@ -56,16 +60,19 @@ function REL_createEventTable()
 			$EventDBTableID[%classIndex, %currentIndex] = %db;
 
 			$EventDBTableCount[%classIndex]++;
-			$EventDBTableClassCount++;
 		}
 
 		if(%db.uiName $= "")
 			continue;
 
 		//register a classname DB type
-		%classIndex = $EventDBTableClassCount + 0; //make sure this is a number\
 		//this is the name to id hash table
-		$EventDBTableClassIndex[%class] = %classIndex;
+		if($EventDBTableClassIndex[%dbClass] $= "")
+		{
+			$EventDBTableClassIndex[%dbClass] = $EventDBTableClassCount + 0;
+			$EventDBTableClassCount++;
+		}
+		%classIndex = $EventDBTableClassIndex[%dbClass];
 		
 		%currentIndex = $EventDBTableCount[%classIndex] + 0; //make sure this is a number
 
@@ -73,14 +80,13 @@ function REL_createEventTable()
 		$EventDBTableID[%classIndex, %currentIndex] = %db;
 
 		$EventDBTableCount[%classIndex]++;
-		$EventDBTableClassCount++;
 	}
 }
 
 function REL_populateType(%gui, %classType)
 {
 	if(!isObject(%gui))
-		continue;
+		return;
 
 	%index = $EventDBTableClassIndex[%classType];
 
@@ -148,6 +154,7 @@ package Client_ReduceEventLag
 			%h = 18;
 
 			%type = getWord(%field, 0);
+			newChatHud_AddLine(%i @" : " @ %type @" // "@ getWord(%field, 1));
 			switch$(%type)
 			{
 				case "int":
