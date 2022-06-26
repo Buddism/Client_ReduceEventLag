@@ -1,6 +1,6 @@
 function REL_createEventTable()
 {
-	newChatHud_AddLine("\c6Generated Event Datablock Tables");
+	echo("===Generated Event Datablock Tables===");
 
 	$REL_RegenerateTable = false;
 	deleteVariables("$EventDBTable*");
@@ -154,7 +154,6 @@ package Client_ReduceEventLag
 			%h = 18;
 
 			%type = getWord(%field, 0);
-			newChatHud_AddLine(%i @" : " @ %type @" // "@ getWord(%field, 1));
 			switch$(%type)
 			{
 				case "int":
