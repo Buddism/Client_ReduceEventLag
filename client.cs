@@ -5,6 +5,7 @@ function REL_createEventTable()
 	$REL_RegenerateTable = false;
 	deleteVariables("$EventDBTable*");
 
+	//this function is the equivalence of ServerConnection.getCount()
 	%dbCount = getDatablockGroupSize();
 	for(%i = 0; %i < %dbCount; %i++)
 	{
@@ -14,37 +15,36 @@ function REL_createEventTable()
 		//%tableClass (type of class music/sound/vehicle/ projectiledata)
 		//%tableName (display name)
 
-		%hasGenericType = false;
+		%hasEventType = false;
 
-		//check the if the current DB matches a generic event type
-		if (%dbClass $= "AudioProfile")
+		//check the if the current DB matches a specific event type (MUSIC, SOUND, VEHICLE)
+		if(%db.uiName $= "")
 		{
-			if (%db.uiName !$= "")
-			{
-				//MUSIC TYPE
-				%tableName = %db.uiName;
-				%tableClass = "Music";
-				%hasGenericType = true;
-			} else if (%db.getDescription().isLooping != 1 && %db.getDescription().is3D)
+			if (%dbClass $= "AudioProfile" && %db.getDescription().isLooping != 1 && %db.getDescription().is3D)
 			{
 				//SOUND TYPE
 				%tableName = fileName(%db.fileName);
 				%tableClass = "Sound";
-				%hasGenericType = true;
+				%hasEventType = true;
 			}
-		} else if(%db.uiName !$= "")
-		{
-			if (%dbClass $= "WheeledVehicleData" || %dbClass $= "HoverVehicleData" || %dbClass $= "FlyingVehicleData" || (%dbClass $= "PlayerData" && %db.rideAble))
+		} else {
+			if(%dbClass $= "AudioProfile")
+			{
+				//MUSIC TYPE
+				%tableName = %db.uiName;
+				%tableClass = "Music";
+				%hasEventType = true;
+			} else if (%dbClass $= "WheeledVehicleData" || %dbClass $= "HoverVehicleData" || %dbClass $= "FlyingVehicleData" || (%dbClass $= "PlayerData" && %db.rideAble))
 			{
 				//VEHICLE TYPE
 				%tableClass = "Vehicle";
 				%tableName = %db.uiName;
-				%hasGenericType = true;
+				%hasEventType = true;
 			}
 		}
 
 		//register a specific table type
-		if(%hasGenericType)
+		if(%hasEventType)
 		{
 			//this is the name to id hash table
 			if($EventDBTableClassIndex[%tableClass] $= "")
@@ -119,6 +119,7 @@ package Client_ReduceEventLag
 		return %parent;
 	}
 
+	//function created by Badspot, decompiled from the DSOs, then cleaned-up by Electrk (laggy webpage: https://github.com/Electrk/bl-decompiled/blob/master/client/scripts/allClientScripts.cs#L18263)
 	//we need to override this function entirely
 	function wrenchEventsDlg::createOutputParameters(%this, %box, %outputMenu, %outputClass)
 	{
@@ -253,22 +254,9 @@ package Client_ReduceEventLag
 						%dbClassName = getWord(%field, 1);
 						%gui = new GuiPopUpMenuCtrl();
 						%box.add(%gui);
-						%w = 100;
-						%gui.resize(%x, %y, %w, %h);
-						switch$(%dbClassName)
-						{
-							case "Music":
-								REL_populateType(%gui, "Music");
+						%gui.resize(%x, %y, 100, %h);
 
-							case "Sound":
-								REL_populateType(%gui, "Sound");
-
-							case "Vehicle":
-								REL_populateType(%gui, "Vehicle");
-									
-							default:
-								REL_populateType(%gui, %dbClassName);
-						}
+						REL_populateType(%gui, %dbClassName);
 
 						%gui.sort();
 						%gui.addFront("NONE", -1);
@@ -375,20 +363,8 @@ package Client_ReduceEventLag
 			//return parent::populateButton(%button,%dataBlock);
 		%button.dataType = %datablock;
 		%button.clear();
-		switch$(%datablock)
-		{
-			case "Music":
-				REL_populateType(%button, "Music");
 
-			case "Sound":
-				REL_populateType(%button, "Sound");
-
-			case "Vehicle":
-				REL_populateType(%button, "Vehicle");
-					
-			default:
-				REL_populateType(%button, %dbClassName);
-		}
+		REL_populateType(%button, %dbClassName);
 
 		%button.sort();
 		%button.addFront("None",-1);
